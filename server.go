@@ -58,5 +58,5 @@ func main() {
 
 	http.HandleFunc("/", IndexHandler)
 	http.HandleFunc("/list", ListHandler)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":"+os.Getenv("PORT"), nil)
 }
