@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8 />
+  <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no' />
+  <script src='//api.tiles.mapbox.com/mapbox.js/v1.5.0/mapbox.js'></script>
+  <link href='//api.tiles.mapbox.com/mapbox.js/v1.5.0/mapbox.css' rel='stylesheet' />
+  <style>
+    body { margin:0; padding:0; }
+    #map { position:absolute; top:0; bottom:0; width:100%; }
+  </style>
+</head>
+<body>
+<div id='map'></div>
+<script>
+  // from underscore.js
+  function debounce(func, wait, immediate) {
+    var timeout, args, context, timestamp, result;
+    return function() {
+      context = this;
+      args = arguments;
+      timestamp = Date.now();
+      var later = function() {
+        var last = Date.now() - timestamp;
+        if (last < wait) {
+          timeout = setTimeout(later, wait - last);
+        } else {
+          timeout = null;
+          if (!immediate) {
+            result = func.apply(context, args);
+            context = args = null;
+          }
+        }
+      };
+      var callNow = immediate && !timeout;
+      if (!timeout) {
+        timeout = setTimeout(later, wait);
+      }
+      if (callNow) {
+        result = func.apply(context, args);
+        context = args = null;
+      }
+
+      return result;
+    };
+  };
+
+  var SearchControl = L.Control.extend({
+    includes: L.Mixin.Events,
+
+    options: {
+        position: 'topleft',
+        keepOpen: false
+    },
+
+    initialize: function(options) {
+        L.Util.setOptions(this, options);
+    },
+
+    _toggle: function(e) {
+        if (e) L.DomEvent.stop(e);
+        if (L.DomUtil.hasClass(this._container, 'active')) {
+            L.DomUtil.removeClass(this._container, 'active');
+            this._results.innerHTML = '';
+            this._input.blur();
+        } else {
+            L.DomUtil.addClass(this._container, 'active');
+            this._input.focus();
+            this._input.select();
+        }
+    },
+
+    _closeIfOpen: function(e) {
+        if (L.DomUtil.hasClass(this._container, 'active') &&
+            !this.options.keepOpen) {
+            L.DomUtil.removeClass(this._container, 'active');
+            this._results.innerHTML = '';
+            this._input.blur();
+        }
+    },
+
+    onAdd: function(map) {
+        var container = L.DomUtil.create('div', 'leaflet-control-mapbox-geocoder leaflet-bar leaflet-control'),
+            link = L.DomUtil.create('a', 'leaflet-control-mapbox-geocoder-toggle mapbox-icon mapbox-icon-geocoder', container),
+            results = L.DomUtil.create('div', 'leaflet-control-mapbox-geocoder-results', container),
+            wrap = L.DomUtil.create('div', 'leaflet-control-mapbox-geocoder-wrap', container),
+            form = L.DomUtil.create('form', 'leaflet-control-mapbox-geocoder-form', wrap),
+            input = L.DomUtil.create('input', '', form);
+
+        link.href = '#';
+        link.innerHTML = '&nbsp;';
+
+        input.type = 'text';
+        input.setAttribute('placeholder', 'Search');
+
+        L.DomEvent.addListener(input, 'keyup', debounce(this._geocode, 300), this);
+        L.DomEvent.disableClickPropagation(container);
+
+        this._map = map;
+        this._results = results;
+        this._input = input;
+        this._form = form;
+
+        if (this.options.keepOpen) {
+            L.DomUtil.addClass(container, 'active');
+        } else {
+            this._map.on('click', this._closeIfOpen, this);
+            L.DomEvent.addListener(link, 'click', this._toggle, this);
+        }
+
+        return container;
+    },
+
+    _geocode: function(e) {
+        this._results.innerHTML = '';
+        if (markers) markers.clearLayers();
+
+        if (this._input.value == '') return;
+
+        L.DomUtil.addClass(this._container, 'searching');
+
+        var map = this._map;
+        var loaded = L.bind(function(data) {
+            L.DomUtil.removeClass(this._container, 'searching');
+
+            for (var i = 0; i < data.features.length; i++) {
+                p = data.features[i].properties
+
+                var r = L.DomUtil.create('a', '', this._results);
+                r.innerHTML = p.name+', '+p.state;
+                r.href = '#';
+
+                (function(feature) {
+                    L.DomEvent.addListener(r, 'click', function(e) {
+                      var _ = feature.geometry.coordinates;
+                      map.setView([_[1], _[0]], 7);
+                      L.DomEvent.stop(e);
+                    });
+                })(data.features[i]);
+            }
+            this.fire('found', data);
+        }, this);
+
+        markers = L.mapbox.markerLayer("/list?q="+encodeURIComponent(this._input.value))
+          .on('ready', function() {
+              this.eachLayer(function (layer) {
+                layer.bindPopup(layer.feature.properties.name+", "+layer.feature.properties.state, {closeButton: false});
+              });
+              loaded(this.getGeoJSON());
+          })
+          .addTo(map);
+      }
+  });
+  var markers;
+  var map = L.mapbox.map('map', 'titanous.ghdp6hol').setView([39.317, -99.712], 5).addControl(new SearchControl);
+</script>
+</body>
+</html>

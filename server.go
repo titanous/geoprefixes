@@ -41,6 +41,10 @@ func ListHandler(w http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(w).Encode(townListGeoJSON(searchTowns(req.FormValue("q"))))
 }
 
+func IndexHandler(w http.ResponseWriter, req *http.Request) {
+	http.ServeFile(w, req, "index.html")
+}
+
 func main() {
 	f, err := os.Open(os.Args[1])
 	if err != nil {
@@ -52,6 +56,7 @@ func main() {
 	f.Close()
 	log.Println("loaded")
 
-	http.HandleFunc("/", ListHandler)
+	http.HandleFunc("/", IndexHandler)
+	http.HandleFunc("/list", ListHandler)
 	http.ListenAndServe(":8080", nil)
 }
